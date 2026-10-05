@@ -373,7 +373,7 @@ function showToast(message) {
 }
 
 function renderLogo(className = "") {
-  return `<img class="${className}" src="assets/karli-test-logo.png" alt="Karli testi logo" />`;
+  return `<img class="${className}" src="assets/karli-test-editorial.png" alt="Karli testi logo" />`;
 }
 
 function icon(name) {
@@ -497,16 +497,43 @@ function render() {
 function renderAuth() {
   return `
     <main class="auth-page page-transition">
+      <header class="auth-nav">
+        <a class="auth-nav-brand" href="#" aria-label="Karli test">
+          ${renderLogo("auth-nav-logo")}
+        </a>
+        <nav class="auth-nav-links" aria-label="Karli testi tutvustus">
+          <span>Enesehindamine</span>
+          <span>Areng ajas</span>
+          <span>Klubi koostöö</span>
+        </nav>
+        <div class="auth-nav-login"><span>Oled juba liige?</span><button data-action="auth-mode" data-mode="login">Logi sisse</button></div>
+      </header>
       <section class="auth-layout">
+        <section class="auth-intro">
+          <div class="auth-intro-decor" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div class="auth-intro-content">
+            <div class="auth-issue"><span></span><span>Karli test · väitleja areng</span></div>
+            <div class="auth-statement">
+              <h1>Areng algab<br /><em>märkamises.</em></h1>
+              <div class="auth-rule"></div>
+              <p>Karli test aitab sul oma väitlusoskusi ausalt hinnata, märgata järgmist harjutuskohta ja näha, kuidas töö ajas tulemuseks muutub.</p>
+            </div>
+            <div class="auth-info-grid">
+              <div><strong>13</strong><span>oskust, mida<br />vaadata</span></div>
+              <div><strong>1–3</strong><span>selge ja ühine<br />skaala</span></div>
+              <div><strong>3 kuud</strong><span>rahulik rütm<br />uueks hindamiseks</span></div>
+            </div>
+          </div>
+          <div class="auth-quote"><p>„Hea arengukoht ei ole hinnang inimesele. See on järgmine koht, kuhu tähelepanu panna.“</p><span>Karli testi põhimõte</span></div>
+        </section>
         <div class="auth-panel">
-          <div class="auth-brand-mark">${renderLogo("auth-logo")}</div>
-          <p class="auth-kicker">Väitlusklubi areng</p>
+          <p class="auth-kicker">Klubi liikme konto</p>
           <div class="auth-tabs">
             <button class="${state.authMode === "login" ? "active" : ""}" data-action="auth-mode" data-mode="login">Logi sisse</button>
             <button class="${state.authMode === "register" ? "active" : ""}" data-action="auth-mode" data-mode="register">Loo konto</button>
           </div>
-          <h1>${state.authMode === "login" ? "Tere tulemast tagasi" : "Loo oma konto"}</h1>
-          <p class="auth-lede">${state.authMode === "login" ? "Jätka sealt, kus pooleli jäid." : "Loo konto, et alustada oma arengulugu."}</p>
+          <h1>${state.authMode === "login" ? "Jätka oma arengulugu." : "Alusta oma arengulugu."}</h1>
+          <p class="auth-lede">${state.authMode === "login" ? "Sinu vastused ja tulemused ootavad sind." : "Loo konto ja liitu oma väitlusklubi arenguruumiga."}</p>
           <form id="auth-form" class="form-grid">
             ${
               state.authMode === "register"
@@ -522,10 +549,11 @@ function renderAuth() {
             }
             <button class="button" type="submit">${state.authMode === "login" ? "Logi sisse" : "Loo konto ja jätka"} ${icon("arrow")}</button>
           </form>
-          <div class="auth-note">Klubiga liitumiseks vajad administraatorilt saadud kutsekoodi.</div>
-          <button class="button secondary demo-button" data-action="demo-login">${icon("user")} Ava näidisvaade</button>
+          <div class="auth-security"><span>${icon("check")}</span><p>Turvaline seanss · sinu tulemusi näed ainult sina ja sinu klubi administraator.</p></div>
+          <p class="auth-note">Klubiga liitumiseks vajad administraatorilt saadud kutsekoodi.</p>
         </div>
       </section>
+      <footer class="auth-footer-bar"><span>Karli test · väitlusoskuste areng</span><span>Selge tagasiside. Järgmine samm. Parem väitlus.</span></footer>
     </main>
   `;
 }
