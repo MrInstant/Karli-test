@@ -178,12 +178,13 @@ function applyRemoteState(payload) {
   }));
   state.draftAnswers = payload.draft?.answers || {};
   state.remoteAssessmentId = payload.draft?.id || null;
-  state.dueDate = latest?.dueDate || new Date().toISOString().slice(0, 10);
+  state.dueDate = latest?.dueDate || null;
+  state.inviteCode = payload.inviteCode || "";
   state.members = (payload.members || []).map((member) => ({
     ...member,
     id: String(member.id),
     average: Number(member.average || 0),
-    last: member.last || new Date().toISOString().slice(0, 10),
+    last: member.last || null,
     status: member.dueDate && member.dueDate < new Date().toISOString().slice(0, 10) ? "late" : "due",
   }));
 }
@@ -246,6 +247,7 @@ const defaultState = {
   remoteAssessmentId: null,
   adminRemoteAssessmentId: null,
   toast: "",
+  inviteCode: "TALLINN2026",
 };
 
 let state = loadState();
@@ -296,6 +298,7 @@ function initials(name) {
 }
 
 function formatDate(dateString) {
+  if (!dateString) return "määramata";
   return new Intl.DateTimeFormat("et-EE", {
     day: "numeric",
     month: "long",
@@ -304,6 +307,7 @@ function formatDate(dateString) {
 }
 
 function formatShortDate(dateString) {
+  if (!dateString) return "Määramata";
   return new Intl.DateTimeFormat("et-EE", {
     day: "numeric",
     month: "short",
@@ -320,8 +324,12 @@ function currentAverage() {
   return average(Object.values(state.answers)).toFixed(1);
 }
 
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function previousAverage() {
-  return state.history.length > 1 ? state.history[state.history.length - 2].average.toFixed(1) : "–";
+  return state.history.length > 1 ? Number(state.history[state.history.length - 2].average).toFixed(1) : "–";
 }
 
 function ratingDescription(value) {
@@ -370,19 +378,19 @@ function renderLogo(className = "") {
 
 function icon(name) {
   const icons = {
-    dashboard: "⌂",
-    questionnaire: "✓",
-    progress: "↗",
-    admin: "▦",
-    questions: "☷",
-    settings: "⚙",
-    arrow: "→",
-    back: "←",
-    check: "✓",
-    calendar: "□",
-    user: "○",
+    dashboard: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V10Z"/></svg>',
+    questionnaire: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z"/><path d="m8 12 2 2 5-5"/></svg>',
+    progress: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19 10 13l4 3 6-8"/><path d="M16 8h4v4"/></svg>',
+    admin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="M8 9h8M8 13h4"/></svg>',
+    questions: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h12M6 12h12M6 19h8"/><circle cx="4" cy="5" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="19" r="1"/></svg>',
+    settings: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-1.7 1.7-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.1h-2.4v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L8 17l.1-.1A1.7 1.7 0 0 0 8.4 15a1.7 1.7 0 0 0-1.6-1H6v-2.4h.8a1.7 1.7 0 0 0 1.6-1A1.7 1.7 0 0 0 8.1 8L8 7.9l1.7-1.7.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6v-.1h2.4V5a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 8l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1v2.4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg>',
+    arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>',
+    back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H6M11 6l-6 6 6 6"/></svg>',
+    check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>',
+    calendar: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>',
+    user: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
   };
-  return icons[name] || "•";
+  return icons[name] || "";
 }
 
 function navItems() {
@@ -509,7 +517,7 @@ function renderAuth() {
             <div class="field"><label for="auth-password">Parool</label><input id="auth-password" name="password" type="password" minlength="10" required placeholder="Vähemalt 10 märki" /></div>
             ${
               state.authMode === "register"
-                ? `<div class="field"><label for="auth-club">Klubi kutsekood</label><input id="auth-club" name="clubCode" required value="TALLINN2026" placeholder="Näiteks TALLINN2026" /><small>Kutsekoode jagab sinu klubi administraator.</small></div>`
+                ? `<div class="field"><label for="auth-club">Klubi kutsekood</label><input id="auth-club" name="clubCode" required placeholder="Sisesta administraatorilt saadud kood" /><small>Kutsekoode jagab sinu klubi administraator.</small></div>`
                 : ""
             }
             <button class="button" type="submit">${state.authMode === "login" ? "Logi sisse" : "Loo konto ja jätka"} ${icon("arrow")}</button>
@@ -537,7 +545,7 @@ function renderView() {
 function renderDashboard() {
   const averageValue = Number(currentAverage());
   const previous = Number(previousAverage());
-  const delta = (averageValue - previous).toFixed(1);
+  const delta = Number.isFinite(previous) ? (averageValue - previous).toFixed(1) : "–";
   const focus = [...questionSeed]
     .map((question) => ({ ...question, value: state.answers[question.id] || 0 }))
     .sort((a, b) => a.value - b.value)
@@ -567,7 +575,7 @@ function renderDashboard() {
 
     <div class="grid stats" style="margin-bottom:18px;">
       <div class="card stat-card"><span class="stat-label">Praegune keskmine</span><strong class="stat-value">${averageValue.toFixed(1)}</strong><span class="stat-detail"><span>5-palli skaalal</span><span class="delta-up">+${delta} viimase korraga</span></span></div>
-      <div class="card stat-card"><span class="stat-label">Eelmine tulemus</span><strong class="stat-value">${previous.toFixed(1)}</strong><span class="stat-detail"><span>${formatShortDate(state.history[state.history.length - 2].date)}</span><span class="delta-neutral">võrdluspunkt</span></span></div>
+      <div class="card stat-card"><span class="stat-label">Eelmine tulemus</span><strong class="stat-value">${Number.isFinite(previous) ? previous.toFixed(1) : "–"}</strong><span class="stat-detail"><span>${state.history.length > 1 ? formatShortDate(state.history[state.history.length - 2].date) : "Esimene hindamine"}</span><span class="delta-neutral">võrdluspunkt</span></span></div>
       <div class="card stat-card"><span class="stat-label">Vastatud küsimused</span><strong class="stat-value">${Object.keys(state.answers).length}/${questionSeed.length}</strong><span class="stat-detail"><span>kõik oskused kaetud</span><span class="tag green">Valmis</span></span></div>
       <div class="card stat-card"><span class="stat-label">Järgmine tähtaeg</span><strong class="stat-value" style="font-size:24px;">${formatShortDate(state.dueDate)}</strong><span class="stat-detail"><span>3 kuu rütm</span><span class="tag amber">Peagi</span></span></div>
     </div>
@@ -613,9 +621,13 @@ function renderDashboard() {
 }
 
 function renderTrendChart() {
+  if (!state.history.length) {
+    return `<div class="empty-state">Pärast esimest lõpetatud hindamist ilmub siia sinu areng ajas.</div>`;
+  }
   const points = state.history.map((item, index) => {
-    const x = 45 + index * 145;
-    const y = 170 - ((item.average - 1) / 2) * 130;
+    const span = Math.max(1, state.history.length - 1);
+    const x = 45 + (index / span) * 435;
+    const y = 170 - ((Number(item.average) - 1) / 2) * 130;
     return { ...item, x, y };
   });
   const pointString = points.map((point) => `${point.x},${point.y}`).join(" ");
@@ -710,7 +722,7 @@ function renderAdmin() {
   const dueCount = state.members.filter((member) => member.status !== "ok").length;
   return `
     <div class="page-heading"><div><p class="eyebrow">Administraatori vaade</p><h1>${escapeHtml(state.user.club)}</h1><p class="lede">Vaata oma klubi liikmete viimaseid tulemusi, hindamise staatust ja järgmist vestluskohta.</p></div><div class="button-row"><button class="button secondary" data-action="navigate" data-view="questions">${icon("questions")} Halda küsimusi</button></div></div>
-    <div class="grid stats" style="margin-bottom:18px;"><div class="card stat-card"><span class="stat-label">Liikmeid</span><strong class="stat-value">${state.members.length}</strong><span class="stat-detail"><span>aktiivsed klubis</span><span class="tag green">Aktiivne</span></span></div><div class="card stat-card"><span class="stat-label">Ootab tähelepanu</span><strong class="stat-value">${dueCount}</strong><span class="stat-detail"><span>hindamine vajab jälgimist</span><span class="tag amber">Vaata üle</span></span></div><div class="card stat-card"><span class="stat-label">Klubi keskmine</span><strong class="stat-value">${average(state.members.map((member) => member.average)).toFixed(1)}</strong><span class="stat-detail"><span>ainult sinu klubi</span><span class="delta-neutral">privaatne</span></span></div><div class="card stat-card"><span class="stat-label">Kutsekood</span><strong class="stat-value" style="font-size:22px;">TALLINN2026</strong><span class="stat-detail"><span>jaga uute liikmetega</span><button class="button ghost" data-action="copy-code">Kopeeri</button></span></div></div>
+    <div class="grid stats" style="margin-bottom:18px;"><div class="card stat-card"><span class="stat-label">Liikmeid</span><strong class="stat-value">${state.members.length}</strong><span class="stat-detail"><span>aktiivsed klubis</span><span class="tag green">Aktiivne</span></span></div><div class="card stat-card"><span class="stat-label">Ootab tähelepanu</span><strong class="stat-value">${dueCount}</strong><span class="stat-detail"><span>hindamine vajab jälgimist</span><span class="tag amber">Vaata üle</span></span></div><div class="card stat-card"><span class="stat-label">Klubi keskmine</span><strong class="stat-value">${average(state.members.map((member) => member.average)).toFixed(1)}</strong><span class="stat-detail"><span>ainult sinu klubi</span><span class="delta-neutral">privaatne</span></span></div><div class="card stat-card"><span class="stat-label">Kutsekood</span><strong class="stat-value" style="font-size:22px;">${escapeHtml(state.inviteCode || "–")}</strong><span class="stat-detail"><span>jaga uute liikmetega</span><button class="button ghost" data-action="copy-code">Kopeeri</button></span></div></div>
     <section class="card"><div class="section-title"><div><h2>Liikmed</h2><p>Administraator näeb ainult ${escapeHtml(state.user.club)} liikmeid.</p></div><span class="status-pill ok">${icon("check")} Andmed on klubipõhised</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Liige</th><th>Keskmine</th><th>Viimane hindamine</th><th>Staatus</th><th></th></tr></thead><tbody>${state.members.map((member) => `<tr><td><div class="member-cell"><span class="avatar">${initials(member.name)}</span><div><strong>${escapeHtml(member.name)}</strong><span>${escapeHtml(member.email)}</span></div></div></td><td><span class="score ${member.average >= 2.5 ? "high" : member.average < 2 ? "low" : ""}">${member.average.toFixed(1)}</span></td><td>${formatShortDate(member.last)}</td><td>${statusLabel(member.status)}</td><td><button class="button ghost" data-action="open-member" data-member-id="${member.id}">Ava detail ${icon("arrow")}</button></td></tr>`).join("")}</tbody></table></div></section>
   `;
 }
@@ -724,32 +736,35 @@ function statusLabel(status) {
 function renderMemberDetail() {
   const member = getMember(state.selectedMember);
   const assessment = state.adminAssessments[member.id] || {};
+  const ratedCount = questionSeed.filter((question) => ratingValues.includes(Number(assessment[question.id]))).length;
+  const complete = ratedCount === questionSeed.length;
   return `
     <div class="page-heading"><div><p class="eyebrow">Liikme hindamine</p><h1>${escapeHtml(member.name)}</h1><p class="lede">${escapeHtml(member.email)} · viimane hindamine ${formatShortDate(member.last)}</p></div><div class="button-row"><button class="button secondary" data-action="navigate" data-view="admin">${icon("back")} Kõik liikmed</button></div></div>
     <div class="grid two" style="margin-bottom:18px;"><section class="card"><div class="section-title"><div><h2>Areng ajas</h2><p>Liikme tulemused klubisiseselt</p></div><span class="score ${member.average >= 2.5 ? "high" : ""}">${member.average.toFixed(1)}</span></div>${renderTrendChart()}</section><section class="card"><div class="section-title"><div><h2>Administraatori märge</h2><p>Lisa lühike kommentaar järgmise vestluse jaoks.</p></div></div><div class="field"><label for="member-comment">Kommentaar</label><textarea id="member-comment" placeholder="Näiteks: harjutame järgmises trennis ümberlükkamise struktuuri...">${escapeHtml(assessment.comment || "")}</textarea></div><button class="button" style="margin-top:12px;" data-action="save-member-comment" data-member-id="${member.id}">Salvesta kommentaar</button></section></div>
-    <section class="card"><div class="section-title"><div><h2>Hinda oskusi</h2><p>Kasuta sama 1–3 skaalat. Vahehinnangud on lubatud.</p></div><span class="tag">${Object.keys(assessment).length ? "Mustand salvestatud" : "Uus hindamine"}</span></div><div class="question-list">${questionSeed.map((question) => { const value = assessment[question.id] || member.average; return `<div class="question-row" style="align-items:flex-start;"><div style="min-width:210px;"><strong>${escapeHtml(question.title)}</strong><span>${escapeHtml(question.category)}</span></div><div class="button-row">${ratingValues.map((rating) => `<button class="rating-button ${value === rating ? "selected" : ""}" style="min-height:52px;min-width:54px;" data-action="admin-rate" data-member-id="${member.id}" data-question-id="${question.id}" data-value="${rating}"><strong style="font-size:16px;">${rating.toString().replace(".", ",")}</strong></button>`).join("")}</div></div>`; }).join("")}</div><div class="button-row" style="margin-top:20px;"><button class="button" data-action="finish-admin-assessment" data-member-id="${member.id}">Salvesta hindamine</button><button class="button secondary" data-action="navigate" data-view="admin">Tagasi liikmete juurde</button></div></section>
+    <section class="card"><div class="section-title"><div><h2>Hinda oskusi</h2><p>Vali iga rea juures üks tase. Hinded salvestuvad kohe.</p></div><span class="tag ${complete ? "green" : "amber"}">${ratedCount}/${questionSeed.length} hinnatud</span></div><div class="question-list">${questionSeed.map((question) => { const value = Number(assessment[question.id]) || 0; return `<div class="question-row" style="align-items:flex-start;"><div style="min-width:210px;"><strong>${escapeHtml(question.title)}</strong><span>${escapeHtml(question.category)}</span></div><div class="button-row">${ratingValues.map((rating) => `<button class="rating-button ${value === rating ? "selected" : ""}" style="min-height:52px;min-width:54px;" data-action="admin-rate" data-member-id="${member.id}" data-question-id="${question.id}" data-value="${rating}" aria-label="${escapeHtml(question.title)}: ${rating}"><strong style="font-size:16px;">${rating.toString().replace(".", ",")}</strong></button>`).join("")}</div></div>`; }).join("")}</div><div class="question-actions"><p class="muted">${complete ? "Kõik oskused on hinnatud." : "Jätka, kuni kõik oskused on hinnatud."}</p><div class="button-row"><button class="button" ${complete ? "" : "disabled"} data-action="finish-admin-assessment" data-member-id="${member.id}">Salvesta hindamine ${icon("check")}</button><button class="button secondary" data-action="navigate" data-view="admin">Tagasi liikmete juurde</button></div></div></section>
   `;
 }
 
 function renderQuestionManagement() {
   return `
-    <div class="page-heading"><div><p class="eyebrow">Administraatori tööriist</p><h1>Küsimuste haldus</h1><p class="lede">Hoia küsimused ja tasemekirjeldused oma klubis arusaadavad. Siin tehtud muudatused mõjutavad järgmisi hindamisi.</p></div><div class="button-row"><button class="button secondary" data-action="navigate" data-view="admin">${icon("back")} Tagasi liikmeteni</button></div></div>
-    <div class="notice" style="margin-bottom:18px;"><span class="notice-icon">i</span><div><strong>Lihtne MVP-lahendus</strong><p>Praegu saad redigeerida küsimuse nime ja tasemekirjeldusi selles brauseris. Hiljem võib selle ühendada rollipõhise serveri ja andmebaasiga.</p></div></div>
-    <section class="card"><div class="section-title"><div><h2>Arengumudeli küsimused</h2><p>${questionSeed.length} küsimust · ${categories.length} teemat</p></div><button class="button" data-action="add-question">${icon("check")} Lisa näidisküsimus</button></div><div class="question-list">${questionSeed.map((question) => `<div class="question-row"><div><strong>${escapeHtml(question.title)}</strong><span>${escapeHtml(question.category)} · ${escapeHtml(question.subskills)}</span></div><button class="button ghost" data-action="edit-question" data-question-id="${question.id}">Muuda ${icon("arrow")}</button></div>`).join("")}</div></section>
+    <div class="page-heading"><div><p class="eyebrow">Klubi seadistused</p><h1>Küsimuste haldus</h1><p class="lede">Hoia arengumudeli sõnastus ajakohane. Muudatused mõjutavad uusi hindamisi, varasemad vastused jäävad alles.</p></div><div class="button-row"><button class="button secondary" data-action="navigate" data-view="admin">${icon("back")} Tagasi liikmeteni</button><button class="button" data-action="add-question">Lisa küsimus ${icon("arrow")}</button></div></div>
+    <section class="card"><div class="section-title"><div><h2>Arengumudeli küsimused</h2><p>${questionSeed.length} küsimust · ${categories.length} teemat</p></div><span class="status-pill ok">${icon("check")} Klubi küsimused</span></div><div class="question-list">${questionSeed.map((question) => `<div class="question-row"><div><strong>${escapeHtml(question.title)}</strong><span>${escapeHtml(question.category)}${question.subskills ? ` · ${escapeHtml(question.subskills)}` : ""}</span></div><button class="button ghost" data-action="edit-question" data-question-id="${question.id}">Muuda ${icon("arrow")}</button></div>`).join("")}</div></section>
     ${state.editingQuestionId ? renderQuestionModal() : ""}
   `;
 }
 
 function renderQuestionModal() {
-  const question = getQuestion(state.editingQuestionId);
-  return `<div class="modal-backdrop"><div class="modal"><div class="section-title"><div><h2>Muuda küsimust</h2><p>${escapeHtml(question.category)}</p></div><button class="button ghost" data-action="close-modal">Sulge</button></div><form id="question-edit-form" class="form-grid"><input type="hidden" name="id" value="${question.id}" /><div class="field"><label for="edit-title">Küsimuse nimi</label><input id="edit-title" name="title" value="${escapeHtml(question.title)}" required /></div><div class="field"><label for="edit-level-1">Tase 1 kirjeldus</label><textarea id="edit-level-1" name="level1" required>${escapeHtml(question.levels[1])}</textarea></div><div class="field"><label for="edit-level-2">Tase 2 kirjeldus</label><textarea id="edit-level-2" name="level2" required>${escapeHtml(question.levels[2])}</textarea></div><div class="field"><label for="edit-level-3">Tase 3 kirjeldus</label><textarea id="edit-level-3" name="level3" required>${escapeHtml(question.levels[3])}</textarea></div><button class="button" type="submit">Salvesta muudatused</button></form></div></div>`;
+  const isNew = state.editingQuestionId === "new";
+  const question = isNew ? { id: "new", category: "", title: "", subskills: "", levels: { 1: "", 2: "", 3: "" } } : getQuestion(state.editingQuestionId);
+  return `<div class="modal-backdrop"><div class="modal"><div class="section-title"><div><h2>${isNew ? "Lisa küsimus" : "Muuda küsimust"}</h2><p>${isNew ? "Loo klubile uus arengukoht." : escapeHtml(question.category)}</p></div><button class="button ghost" data-action="close-modal">Sulge</button></div><form id="question-edit-form" class="form-grid"><input type="hidden" name="id" value="${question.id}" /><div class="form-grid two-col"><div class="field"><label for="edit-category">Teema</label><input id="edit-category" name="category" value="${escapeHtml(question.category)}" required /></div><div class="field"><label for="edit-title">Küsimuse nimi</label><input id="edit-title" name="title" value="${escapeHtml(question.title)}" required /></div></div><div class="field"><label for="edit-subskills">Alamoskused</label><input id="edit-subskills" name="subskills" value="${escapeHtml(question.subskills)}" placeholder="Näiteks struktuur · selgus" /></div><div class="field"><label for="edit-level-1">Tase 1 kirjeldus</label><textarea id="edit-level-1" name="level1" required>${escapeHtml(question.levels[1])}</textarea></div><div class="field"><label for="edit-level-2">Tase 2 kirjeldus</label><textarea id="edit-level-2" name="level2" required>${escapeHtml(question.levels[2])}</textarea></div><div class="field"><label for="edit-level-3">Tase 3 kirjeldus</label><textarea id="edit-level-3" name="level3" required>${escapeHtml(question.levels[3])}</textarea></div><button class="button" type="submit">Salvesta küsimus ${icon("check")}</button></form></div></div>`;
 }
 
 function renderSettings() {
   return `
     <div class="page-heading"><div><p class="eyebrow">Minu konto</p><h1>Seaded</h1><p class="lede">Hoia oma profiil ja meeldetuletused korras.</p></div></div>
-    <div class="grid two"><section class="card form-card"><div class="section-title"><div><h2>Profiil</h2><p>Andmed, mida näeb sinu klubi.</p></div></div><form id="profile-form" class="form-grid"><div class="field"><label for="profile-name">Nimi</label><input id="profile-name" name="name" value="${escapeHtml(state.user.name)}" required /></div><div class="field"><label for="profile-email">E-post</label><input id="profile-email" name="email" type="email" value="${escapeHtml(state.user.email)}" required /></div><div class="field"><label for="profile-club">Klubi</label><input id="profile-club" name="club" value="${escapeHtml(state.user.club)}" required /></div><button class="button" type="submit">Salvesta profiil</button></form></section><section class="card"><div class="section-title"><div><h2>Meeldetuletused</h2><p>Uus hindamine iga kolme kuu järel.</p></div><span class="status-pill ok">${icon("check")} Sees</span></div><div class="notice"><span class="notice-icon">!</span><div><strong>Järgmine meeldetuletus</strong><p>${formatDate(state.dueDate)} · rakendus kuvab selle sulle siin kohe, kui kuupäev kätte jõuab.</p></div></div><div class="divider"></div><div class="section-title"><div><h3>Klubiga liitumine</h3><p>Praegune klubi: ${escapeHtml(state.user.club)}</p></div><span class="tag">TALLINN2026</span></div><p style="color:var(--muted);font-size:13px;">Uus liige liitub kutsekoodi kaudu. Administraator saab liikme oma klubis kinnitada.</p></section></div>
-    <section class="card" style="margin-top:18px;"><div class="section-title"><div><h2>Demo roll</h2><p>Prototüübi vaatamiseks saad rolli vahetada. Päris versioonis määrab rolli administraator.</p></div><span class="tag">${state.user.role === "admin" ? "Administraator" : "Klubi liige"}</span></div><div class="button-row"><button class="button ${state.user.role === "member" ? "" : "secondary"}" data-action="set-role" data-role="member">Kasuta liikme vaadet</button><button class="button ${state.user.role === "admin" ? "" : "secondary"}" data-action="set-role" data-role="admin">Kasuta administraatori vaadet</button><button class="button danger" data-action="logout">Logi välja</button></div></section>
+    <div class="grid two"><section class="card form-card"><div class="section-title"><div><h2>Profiil</h2><p>Muuda nime. E-post ja klubi on seotud kontoga.</p></div></div><form id="profile-form" class="form-grid"><div class="field"><label for="profile-name">Nimi</label><input id="profile-name" name="name" value="${escapeHtml(state.user.name)}" required /></div><div class="field"><label for="profile-email">E-post</label><input id="profile-email" name="email" type="email" value="${escapeHtml(state.user.email)}" readonly /></div><div class="field"><label for="profile-club">Klubi</label><input id="profile-club" name="club" value="${escapeHtml(state.user.club)}" readonly /></div><button class="button" type="submit">Salvesta nimi ${icon("check")}</button></form></section><section class="card"><div class="section-title"><div><h2>Meeldetuletused</h2><p>Uus hindamine iga kolme kuu järel.</p></div><span class="status-pill ok">${icon("check")} Aktiivne</span></div><div class="notice"><span class="notice-icon">!</span><div><strong>Järgmine hindamine</strong><p>${formatDate(state.dueDate)} · rakendus näitab tähtaja saabudes siin uut märguannet.</p></div></div><div class="divider"></div><div class="section-title"><div><h3>Praegune klubi</h3><p>${escapeHtml(state.user.club)}</p></div><span class="tag">${state.user.role === "admin" ? "Administraator" : "Liige"}</span></div><p style="color:var(--muted);font-size:12px;">Klubiga liitutakse kutsekoodi kaudu. Klubi administraator vastutab liikmete haldamise eest.</p></section></div>
+    <section class="card" style="margin-top:16px;"><div class="section-title"><div><h2>Seanss</h2><p>Kui kasutad jagatud arvutit, lõpeta töö järel seanss.</p></div><button class="button danger" data-action="logout">Logi välja</button></div></section>
+    ${state.backendConnected ? "" : `<section class="card" style="margin-top:16px;"><div class="section-title"><div><h2>Näidisvaade</h2><p>See konto töötab ainult lokaalselt ega salvesta andmeid serverisse.</p></div><span class="tag amber">Demo</span></div><div class="button-row"><button class="button secondary" data-action="set-role" data-role="member">Liikme vaade</button><button class="button secondary" data-action="set-role" data-role="admin">Administraatori vaade</button></div></section>`}
   `;
 }
 
@@ -786,31 +801,53 @@ async function handleAuthSubmit(event) {
   }
 }
 
-function handleProfileSubmit(event) {
+async function handleProfileSubmit(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  state.user.name = form.get("name");
-  state.user.email = form.get("email");
-  state.user.club = form.get("club");
-  saveState();
-  showToast("Profiil on salvestatud.");
+  const name = String(form.get("name") || "").trim();
+  try {
+    if (state.backendConnected) {
+      await apiRequest("/profile", { method: "PUT", body: JSON.stringify({ name }) });
+      await syncRemoteState();
+    } else {
+      state.user.name = name;
+      saveState();
+    }
+    showToast("Profiil on salvestatud.");
+  } catch (error) {
+    window.alert(error.message || "Profiili salvestamine ei õnnestunud.");
+  }
 }
 
-function handleQuestionEdit(event) {
+async function handleQuestionEdit(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  const question = getQuestion(form.get("id"));
-  question.title = form.get("title");
-  question.levels[1] = form.get("level1");
-  question.levels[2] = form.get("level2");
-  question.levels[3] = form.get("level3");
-  state.questionOverrides[question.id] = {
-    title: question.title,
-    levels: { 1: question.levels[1], 2: question.levels[2], 3: question.levels[3] },
+  const id = String(form.get("id"));
+  const values = {
+    title: String(form.get("title") || "").trim(),
+    category: String(form.get("category") || "Üldoskused").trim(),
+    subskills: String(form.get("subskills") || "").trim(),
+    levels: { 1: String(form.get("level1") || "").trim(), 2: String(form.get("level2") || "").trim(), 3: String(form.get("level3") || "").trim() },
   };
-  state.editingQuestionId = null;
-  saveState();
-  showToast("Küsimuse kirjeldused on uuendatud.");
+  try {
+    if (id === "new") {
+      const payload = await apiRequest("/admin/questions", { method: "POST", body: JSON.stringify(values) });
+      questionSeed.push({ id: String(payload.id), ...values });
+    } else if (state.backendConnected) {
+      await apiRequest(`/admin/questions/${id}`, { method: "PUT", body: JSON.stringify({ title: values.title, levels: values.levels }) });
+      await syncRemoteState();
+    } else {
+      const question = getQuestion(id);
+      Object.assign(question, values);
+      state.questionOverrides[question.id] = { title: question.title, levels: question.levels };
+      saveState();
+    }
+    state.editingQuestionId = null;
+    render();
+    showToast("Küsimus on salvestatud.");
+  } catch (error) {
+    window.alert(error.message || "Küsimuse salvestamine ei õnnestunud.");
+  }
 }
 
 async function handleAction(event) {
@@ -886,9 +923,13 @@ async function handleAction(event) {
     state.answers = { ...state.answers, ...state.draftAnswers };
     state.draftAnswers = {};
     if (!state.backendConnected) {
-      state.history.push({ date: "2026-10-04", average: Number(currentAverage()), label: "Oktoober 2026" });
-      state.lastCompleted = "2026-10-04";
-      state.dueDate = "2027-01-04";
+      const today = todayIso();
+      const due = new Date(`${today}T12:00:00`);
+      due.setMonth(due.getMonth() + 3);
+      const dueDate = due.toISOString().slice(0, 10);
+      state.history.push({ date: today, average: Number(currentAverage()), label: formatShortDate(today) });
+      state.lastCompleted = today;
+      state.dueDate = dueDate;
     }
     state.remoteAssessmentId = null;
     state.questionIndex = 0;
@@ -971,7 +1012,7 @@ async function handleAction(event) {
     const values = questionSeed.map((question) => assessment[question.id]).filter(Boolean);
     const member = getMember(memberId);
     if (values.length) member.average = average(values);
-    member.last = "2026-10-04";
+    member.last = todayIso();
     member.status = "ok";
     saveState();
     showToast("Liikme hindamine on salvestatud.");
@@ -988,11 +1029,12 @@ async function handleAction(event) {
     return;
   }
   if (action === "add-question") {
-    showToast("Uue küsimuse loomine on järgmise versiooni tööjärjekorras.");
+    state.editingQuestionId = "new";
+    render();
     return;
   }
   if (action === "copy-code") {
-    navigator.clipboard?.writeText("TALLINN2026");
+    navigator.clipboard?.writeText(state.inviteCode || "");
     showToast("Kutsekood on kopeeritud.");
     return;
   }

@@ -284,8 +284,9 @@ export default async function handler(req, res) {
       }
       if (method === 'POST' && !id) {
         const category = text(body.category, 'Teema', 160);
+        const subskills = typeof body.subskills === 'string' ? body.subskills.trim().slice(0, 255) : '';
         const order = await query('SELECT COALESCE(MAX(sort_order),0)+1 AS position FROM kt_questions WHERE club_id=?', [user.club_id]);
-        const inserted = await query('INSERT INTO kt_questions (club_id,category,title,subskills,level_1,level_2,level_3,sort_order) VALUES (?,?,?,?,?,?,?,?)', [user.club_id, category, title, '', ...levels, order[0].position]);
+        const inserted = await query('INSERT INTO kt_questions (club_id,category,title,subskills,level_1,level_2,level_3,sort_order) VALUES (?,?,?,?,?,?,?,?)', [user.club_id, category, title, subskills, ...levels, order[0].position]);
         return send(res, 201, { id: String(inserted.insertId) });
       }
     }
