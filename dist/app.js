@@ -185,7 +185,7 @@ function applyRemoteState(payload) {
     id: String(member.id),
     average: Number(member.average || 0),
     last: member.last || null,
-    status: member.dueDate && member.dueDate < new Date().toISOString().slice(0, 10) ? "late" : "due",
+    status: member.dueDate ? (member.dueDate < new Date().toISOString().slice(0, 10) ? "late" : "due") : "new",
   }));
 }
 
@@ -242,6 +242,7 @@ const defaultState = {
     { id: "m4", name: "Oskar Kask", email: "oskar@näidis.ee", average: 2.2, last: "2026-07-27", status: "due" },
   ],
   selectedMember: "m1",
+  memberHistory: [],
   adminAssessments: {},
   backendConnected: false,
   remoteAssessmentId: null,
@@ -316,8 +317,13 @@ function formatShortDate(dateString) {
 }
 
 function average(values) {
-  const clean = values.filter((value) => typeof value === "number");
+  const clean = values.filter((value) => typeof value === "number" && value > 0);
   return clean.length ? clean.reduce((sum, value) => sum + value, 0) / clean.length : 0;
+}
+
+function displayAverage(value) {
+  const numeric = Number(value);
+  return numeric > 0 ? numeric.toFixed(1) : "–";
 }
 
 function currentAverage() {
@@ -574,6 +580,10 @@ function renderDashboard() {
   const averageValue = Number(currentAverage());
   const previous = Number(previousAverage());
   const delta = Number.isFinite(previous) ? (averageValue - previous).toFixed(1) : "–";
+  const overdue = state.dueDate && state.dueDate < todayIso();
+  const firstAssessment = !state.history.length;
+  const noticeTitle = firstAssessment ? "Alusta esimest enesehindamist" : overdue ? "Uus hindamine on tähtajast üle" : "Järgmine hindamine on peagi käes";
+  const noticeText = firstAssessment ? "Esimene hindamine loob sulle lähtekoha, mille järgi edasist arengut jälgida." : `Sinu järgmine küsimustik on oodatud ${formatDate(state.dueDate)}. Vastuseid saad täita ka mitmes osas.`;
   const focus = [...questionSeed]
     .map((question) => ({ ...question, value: state.answers[question.id] || 0 }))
     .sort((a, b) => a.value - b.value)
@@ -597,15 +607,15 @@ function renderDashboard() {
 
     <div class="notice" style="margin-bottom:18px;">
       <span class="notice-icon">!</span>
-      <div><strong>Järgmine hindamine on peagi käes</strong><p>Sinu järgmine küsimustik on oodatud ${formatDate(state.dueDate)}. Vastuseid saad täita ka mitmes osas.</p></div>
+      <div><strong>${noticeTitle}</strong><p>${noticeText}</p></div>
       <button class="button ghost" data-action="navigate" data-view="questionnaire">Alusta ${icon("arrow")}</button>
     </div>
 
     <div class="grid stats" style="margin-bottom:18px;">
-      <div class="card stat-card"><span class="stat-label">Praegune keskmine</span><strong class="stat-value">${averageValue.toFixed(1)}</strong><span class="stat-detail"><span>5-palli skaalal</span><span class="delta-up">+${delta} viimase korraga</span></span></div>
+      <div class="card stat-card"><span class="stat-label">Praegune keskmine</span><strong class="stat-value">${displayAverage(averageValue)}</strong><span class="stat-detail"><span>3-palli skaalal</span><span class="delta-up">${delta === "–" ? "Esimene tulemus" : `+${delta} viimase korraga`}</span></span></div>
       <div class="card stat-card"><span class="stat-label">Eelmine tulemus</span><strong class="stat-value">${Number.isFinite(previous) ? previous.toFixed(1) : "–"}</strong><span class="stat-detail"><span>${state.history.length > 1 ? formatShortDate(state.history[state.history.length - 2].date) : "Esimene hindamine"}</span><span class="delta-neutral">võrdluspunkt</span></span></div>
-      <div class="card stat-card"><span class="stat-label">Vastatud küsimused</span><strong class="stat-value">${Object.keys(state.answers).length}/${questionSeed.length}</strong><span class="stat-detail"><span>kõik oskused kaetud</span><span class="tag green">Valmis</span></span></div>
-      <div class="card stat-card"><span class="stat-label">Järgmine tähtaeg</span><strong class="stat-value" style="font-size:24px;">${formatShortDate(state.dueDate)}</strong><span class="stat-detail"><span>3 kuu rütm</span><span class="tag amber">Peagi</span></span></div>
+      <div class="card stat-card"><span class="stat-label">Vastatud küsimused</span><strong class="stat-value">${Object.keys(state.answers).length}/${questionSeed.length}</strong><span class="stat-detail"><span>${Object.keys(state.answers).length === questionSeed.length ? "kõik oskused kaetud" : "esimene samm"}</span><span class="tag ${Object.keys(state.answers).length === questionSeed.length ? "green" : "amber"}">${Object.keys(state.answers).length === questionSeed.length ? "Valmis" : "Pooleli"}</span></span></div>
+      <div class="card stat-card"><span class="stat-label">Järgmine tähtaeg</span><strong class="stat-value" style="font-size:24px;">${formatShortDate(state.dueDate)}</strong><span class="stat-detail"><span>3 kuu rütm</span><span class="tag amber">${overdue ? "Üle tähtaja" : state.dueDate ? "Peagi" : "Pärast esimest"}</span></span></div>
     </div>
 
     <div class="grid two" style="margin-bottom:18px;">
@@ -648,12 +658,12 @@ function renderDashboard() {
   `;
 }
 
-function renderTrendChart() {
-  if (!state.history.length) {
+function renderTrendChart(history = state.history) {
+  if (!history.length) {
     return `<div class="empty-state">Pärast esimest lõpetatud hindamist ilmub siia sinu areng ajas.</div>`;
   }
-  const points = state.history.map((item, index) => {
-    const span = Math.max(1, state.history.length - 1);
+  const points = history.map((item, index) => {
+    const span = Math.max(1, history.length - 1);
     const x = 45 + (index / span) * 435;
     const y = 170 - ((Number(item.average) - 1) / 2) * 130;
     return { ...item, x, y };
@@ -663,7 +673,7 @@ function renderTrendChart() {
   return `
     <div class="chart-wrap">
       <svg viewBox="0 0 500 205" role="img" aria-label="Keskmise tulemuse muutus ajas">
-        <defs><linearGradient id="areaFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#2d78d8" stop-opacity=".18"/><stop offset="100%" stop-color="#2d78d8" stop-opacity="0"/></linearGradient></defs>
+        <defs><linearGradient id="areaFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#7b2d3b" stop-opacity=".18"/><stop offset="100%" stop-color="#7b2d3b" stop-opacity="0"/></linearGradient></defs>
         <line class="chart-grid" x1="30" y1="40" x2="480" y2="40"/><line class="chart-grid" x1="30" y1="105" x2="480" y2="105"/><line class="chart-grid" x1="30" y1="170" x2="480" y2="170"/>
         <text class="chart-label" x="5" y="44">3,0</text><text class="chart-label" x="5" y="109">2,0</text><text class="chart-label" x="5" y="174">1,0</text>
         <polygon class="chart-area" points="${areaString}"></polygon>
@@ -750,14 +760,15 @@ function renderAdmin() {
   const dueCount = state.members.filter((member) => member.status !== "ok").length;
   return `
     <div class="page-heading"><div><p class="eyebrow">Administraatori vaade</p><h1>${escapeHtml(state.user.club)}</h1><p class="lede">Vaata oma klubi liikmete viimaseid tulemusi, hindamise staatust ja järgmist vestluskohta.</p></div><div class="button-row"><button class="button secondary" data-action="navigate" data-view="questions">${icon("questions")} Halda küsimusi</button></div></div>
-    <div class="grid stats" style="margin-bottom:18px;"><div class="card stat-card"><span class="stat-label">Liikmeid</span><strong class="stat-value">${state.members.length}</strong><span class="stat-detail"><span>aktiivsed klubis</span><span class="tag green">Aktiivne</span></span></div><div class="card stat-card"><span class="stat-label">Ootab tähelepanu</span><strong class="stat-value">${dueCount}</strong><span class="stat-detail"><span>hindamine vajab jälgimist</span><span class="tag amber">Vaata üle</span></span></div><div class="card stat-card"><span class="stat-label">Klubi keskmine</span><strong class="stat-value">${average(state.members.map((member) => member.average)).toFixed(1)}</strong><span class="stat-detail"><span>ainult sinu klubi</span><span class="delta-neutral">privaatne</span></span></div><div class="card stat-card"><span class="stat-label">Kutsekood</span><strong class="stat-value" style="font-size:22px;">${escapeHtml(state.inviteCode || "–")}</strong><span class="stat-detail"><span>jaga uute liikmetega</span><button class="button ghost" data-action="copy-code">Kopeeri</button></span></div></div>
-    <section class="card"><div class="section-title"><div><h2>Liikmed</h2><p>Administraator näeb ainult ${escapeHtml(state.user.club)} liikmeid.</p></div><span class="status-pill ok">${icon("check")} Andmed on klubipõhised</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Liige</th><th>Keskmine</th><th>Viimane hindamine</th><th>Staatus</th><th></th></tr></thead><tbody>${state.members.map((member) => `<tr><td><div class="member-cell"><span class="avatar">${initials(member.name)}</span><div><strong>${escapeHtml(member.name)}</strong><span>${escapeHtml(member.email)}</span></div></div></td><td><span class="score ${member.average >= 2.5 ? "high" : member.average < 2 ? "low" : ""}">${member.average.toFixed(1)}</span></td><td>${formatShortDate(member.last)}</td><td>${statusLabel(member.status)}</td><td><button class="button ghost" data-action="open-member" data-member-id="${member.id}">Ava detail ${icon("arrow")}</button></td></tr>`).join("")}</tbody></table></div></section>
+    <div class="grid stats" style="margin-bottom:18px;"><div class="card stat-card"><span class="stat-label">Liikmeid</span><strong class="stat-value">${state.members.length}</strong><span class="stat-detail"><span>aktiivsed klubis</span><span class="tag green">Aktiivne</span></span></div><div class="card stat-card"><span class="stat-label">Ootab tähelepanu</span><strong class="stat-value">${dueCount}</strong><span class="stat-detail"><span>hindamine vajab jälgimist</span><span class="tag amber">Vaata üle</span></span></div><div class="card stat-card"><span class="stat-label">Klubi keskmine</span><strong class="stat-value">${displayAverage(average(state.members.map((member) => member.average)))}</strong><span class="stat-detail"><span>ainult sinu klubi</span><span class="delta-neutral">privaatne</span></span></div><div class="card stat-card"><span class="stat-label">Kutsekood</span><strong class="stat-value" style="font-size:22px;">${escapeHtml(state.inviteCode || "–")}</strong><span class="stat-detail"><span>jaga uute liikmetega</span><button class="button ghost" data-action="copy-code">Kopeeri</button></span></div></div>
+    <section class="card"><div class="section-title"><div><h2>Liikmed</h2><p>Administraator näeb ainult ${escapeHtml(state.user.club)} liikmeid.</p></div><span class="status-pill ok">${icon("check")} Andmed on klubipõhised</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Liige</th><th>Keskmine</th><th>Viimane hindamine</th><th>Staatus</th><th></th></tr></thead><tbody>${state.members.map((member) => `<tr><td><div class="member-cell"><span class="avatar">${initials(member.name)}</span><div><strong>${escapeHtml(member.name)}</strong><span>${escapeHtml(member.email)}</span></div></div></td><td><span class="score ${member.average >= 2.5 ? "high" : member.average > 0 && member.average < 2 ? "low" : ""}">${displayAverage(member.average)}</span></td><td>${formatShortDate(member.last)}</td><td>${statusLabel(member.status)}</td><td><button class="button ghost" data-action="open-member" data-member-id="${member.id}">Ava detail ${icon("arrow")}</button></td></tr>`).join("")}</tbody></table></div></section>
   `;
 }
 
 function statusLabel(status) {
   if (status === "ok") return `<span class="status-pill ok">${icon("check")} Värske</span>`;
   if (status === "late") return `<span class="status-pill warning">Üle tähtaja</span>`;
+  if (status === "new") return `<span class="tag">Alustamata</span>`;
   return `<span class="status-pill warning">Peagi tähtajaks</span>`;
 }
 
@@ -768,7 +779,7 @@ function renderMemberDetail() {
   const complete = ratedCount === questionSeed.length;
   return `
     <div class="page-heading"><div><p class="eyebrow">Liikme hindamine</p><h1>${escapeHtml(member.name)}</h1><p class="lede">${escapeHtml(member.email)} · viimane hindamine ${formatShortDate(member.last)}</p></div><div class="button-row"><button class="button secondary" data-action="navigate" data-view="admin">${icon("back")} Kõik liikmed</button></div></div>
-    <div class="grid two" style="margin-bottom:18px;"><section class="card"><div class="section-title"><div><h2>Areng ajas</h2><p>Liikme tulemused klubisiseselt</p></div><span class="score ${member.average >= 2.5 ? "high" : ""}">${member.average.toFixed(1)}</span></div>${renderTrendChart()}</section><section class="card"><div class="section-title"><div><h2>Administraatori märge</h2><p>Lisa lühike kommentaar järgmise vestluse jaoks.</p></div></div><div class="field"><label for="member-comment">Kommentaar</label><textarea id="member-comment" placeholder="Näiteks: harjutame järgmises trennis ümberlükkamise struktuuri...">${escapeHtml(assessment.comment || "")}</textarea></div><button class="button" style="margin-top:12px;" data-action="save-member-comment" data-member-id="${member.id}">Salvesta kommentaar</button></section></div>
+    <div class="grid two" style="margin-bottom:18px;"><section class="card"><div class="section-title"><div><h2>Areng ajas</h2><p>Liikme varasemad tulemused</p></div><span class="score ${member.average >= 2.5 ? "high" : ""}">${displayAverage(member.average)}</span></div>${renderTrendChart(state.memberHistory)}</section><section class="card"><div class="section-title"><div><h2>Administraatori märge</h2><p>Lisa lühike kommentaar järgmise vestluse jaoks.</p></div></div><div class="field"><label for="member-comment">Kommentaar</label><textarea id="member-comment" placeholder="Näiteks: harjutame järgmises trennis ümberlükkamise struktuuri...">${escapeHtml(assessment.comment || "")}</textarea></div><button class="button" style="margin-top:12px;" data-action="save-member-comment" data-member-id="${member.id}">Salvesta kommentaar</button></section></div>
     <section class="card"><div class="section-title"><div><h2>Hinda oskusi</h2><p>Vali iga rea juures üks tase. Hinded salvestuvad kohe.</p></div><span class="tag ${complete ? "green" : "amber"}">${ratedCount}/${questionSeed.length} hinnatud</span></div><div class="question-list">${questionSeed.map((question) => { const value = Number(assessment[question.id]) || 0; return `<div class="question-row" style="align-items:flex-start;"><div style="min-width:210px;"><strong>${escapeHtml(question.title)}</strong><span>${escapeHtml(question.category)}</span></div><div class="button-row">${ratingValues.map((rating) => `<button class="rating-button ${value === rating ? "selected" : ""}" style="min-height:52px;min-width:54px;" data-action="admin-rate" data-member-id="${member.id}" data-question-id="${question.id}" data-value="${rating}" aria-label="${escapeHtml(question.title)}: ${rating}"><strong style="font-size:16px;">${rating.toString().replace(".", ",")}</strong></button>`).join("")}</div></div>`; }).join("")}</div><div class="question-actions"><p class="muted">${complete ? "Kõik oskused on hinnatud." : "Jätka, kuni kõik oskused on hinnatud."}</p><div class="button-row"><button class="button" ${complete ? "" : "disabled"} data-action="finish-admin-assessment" data-member-id="${member.id}">Salvesta hindamine ${icon("check")}</button><button class="button secondary" data-action="navigate" data-view="admin">Tagasi liikmete juurde</button></div></div></section>
   `;
 }
@@ -971,6 +982,11 @@ async function handleAction(event) {
     if (state.backendConnected) {
       try {
         let payload = await apiRequest(`/admin/members/${state.selectedMember}`);
+        state.memberHistory = (payload.history || []).map((item) => ({
+          date: item.date,
+          average: Number(item.average),
+          label: formatShortDate(item.date),
+        }));
         let draft = payload.draft;
         if (!draft) {
           const started = await apiRequest(`/admin/members/${state.selectedMember}/start`, { method: "POST", body: JSON.stringify({}) });
@@ -982,6 +998,8 @@ async function handleAction(event) {
         window.alert(error.message || "Liikme avamine ei õnnestunud.");
         return;
       }
+    } else {
+      state.memberHistory = [];
     }
     state.view = "member";
     saveState();
@@ -1104,3 +1122,4 @@ async function boot() {
 }
 
 boot();
+
