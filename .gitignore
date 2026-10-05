@@ -1,0 +1,16 @@
+assets/
+tools/
+karli-test-site.tar.gz
+.sites-checkout/
+.sites-checkout-*/
+zone-api/config.local.php
+.sites-checkout/
+.sites-checkout-*/
+node_modules/
+.env
+.env.*
+!.env.example
+.vercel/
+dist/runtime-config.js
+test-results/
+
