@@ -58,7 +58,7 @@ export function checkMutation(req) {
   const origin = req.headers.origin;
   if (origin) {
     const host = req.headers['x-forwarded-host'] || req.headers.host;
-    const expected = process.env.APP_ORIGIN || `${req.headers['x-forwarded-proto'] || 'http'}://${host}`;
+    const expected = (process.env.APP_ORIGIN || `${req.headers['x-forwarded-proto'] || 'http'}://${host}`).replace(/\/+$/, '');
     if (origin !== expected) throw new ApiError(403, 'Päringu päritolu ei ole lubatud.');
   }
 }
