@@ -494,17 +494,28 @@ function pageTitle(view) {
   return titles[view] || "Ülevaade";
 }
 
+function isAdminPortal() {
+  return /^\/admin(?:\/|$)/.test(window.location.pathname);
+}
+
 function render() {
   const app = document.querySelector("#app");
-  app.innerHTML = state.user ? shell(renderView()) : renderAuth();
+  const adminPortal = isAdminPortal();
+  if (adminPortal && state.user && (!state.backendConnected || state.user.role !== "admin")) {
+    state.user = null;
+    state.backendConnected = false;
+    state.remoteAssessmentId = null;
+  }
+  app.innerHTML = state.user ? shell(renderView()) : renderAuth(adminPortal);
   bindEvents();
 }
 
-function renderAuth() {
+function renderAuth(adminPortal = false) {
+  if (adminPortal) state.authMode = "login";
   return `
     <main class="auth-page page-transition">
       <header class="auth-nav">
-        <a class="auth-nav-brand" href="#" aria-label="Karli test">
+        <a class="auth-nav-brand" href="/" aria-label="Karli test">
           ${renderLogo("auth-nav-logo")}
         </a>
         <nav class="auth-nav-links" aria-label="Karli testi tutvustus">
@@ -512,17 +523,17 @@ function renderAuth() {
           <span>Areng ajas</span>
           <span>Klubi koostöö</span>
         </nav>
-        <div class="auth-nav-login"><span>Oled juba liige?</span><button data-action="auth-mode" data-mode="login">Logi sisse</button></div>
+        <div class="auth-nav-login"><span>${adminPortal ? "Liikme vaade" : "Oled juba liige?"}</span><button data-action="auth-mode" data-mode="login">Logi sisse</button></div>
       </header>
       <section class="auth-layout">
         <section class="auth-intro">
           <div class="auth-intro-decor" aria-hidden="true"><span></span><span></span><span></span></div>
           <div class="auth-intro-content">
-            <div class="auth-issue"><span></span><span>Karli test · väitleja areng</span></div>
+            <div class="auth-issue"><span></span><span>${adminPortal ? "Karli test · administraatoriportaal" : "Karli test · väitleja areng"}</span></div>
             <div class="auth-statement">
               <h1>Areng algab<br /><em>märkamises.</em></h1>
               <div class="auth-rule"></div>
-              <p>Karli test aitab sul oma väitlusoskusi ausalt hinnata, märgata järgmist harjutuskohta ja näha, kuidas töö ajas tulemuseks muutub.</p>
+              <p>${adminPortal ? "Jälgi oma klubi liikmete arengut, anna sihipärast tagasisidet ja hoia järgmised hindamised õigel ajal järjel." : "Karli test aitab sul oma väitlusoskusi ausalt hinnata, märgata järgmist harjutuskohta ja näha, kuidas töö ajas tulemuseks muutub."}</p>
             </div>
             <div class="auth-info-grid">
               <div><strong>13</strong><span>oskust, mida<br />vaadata</span></div>
@@ -533,30 +544,30 @@ function renderAuth() {
           <div class="auth-quote"><p>„Hea arengukoht ei ole hinnang inimesele. See on järgmine koht, kuhu tähelepanu panna.“</p><span>Karli testi põhimõte</span></div>
         </section>
         <div class="auth-panel">
-          <p class="auth-kicker">Klubi liikme konto</p>
+          <p class="auth-kicker">${adminPortal ? "Klubi administraatori konto" : "Klubi liikme konto"}</p>
           <div class="auth-tabs">
             <button class="${state.authMode === "login" ? "active" : ""}" data-action="auth-mode" data-mode="login">Logi sisse</button>
-            <button class="${state.authMode === "register" ? "active" : ""}" data-action="auth-mode" data-mode="register">Loo konto</button>
+            ${adminPortal ? "" : `<button class="${state.authMode === "register" ? "active" : ""}" data-action="auth-mode" data-mode="register">Loo konto</button>`}
           </div>
-          <h1>${state.authMode === "login" ? "Jätka oma arengulugu." : "Alusta oma arengulugu."}</h1>
-          <p class="auth-lede">${state.authMode === "login" ? "Sinu vastused ja tulemused ootavad sind." : "Loo konto ja liitu oma väitlusklubi arenguruumiga."}</p>
+          <h1>${adminPortal ? "Juhi klubi arengut." : state.authMode === "login" ? "Jätka oma arengulugu." : "Alusta oma arengulugu."}</h1>
+          <p class="auth-lede">${adminPortal ? "Logi sisse administraatorina, et avada oma klubi liikmete vaade." : state.authMode === "login" ? "Sinu vastused ja tulemused ootavad sind." : "Loo konto ja liitu oma väitlusklubi arenguruumiga."}</p>
           <form id="auth-form" class="form-grid">
             ${
-              state.authMode === "register"
+              state.authMode === "register" && !adminPortal
                 ? `<div class="field"><label for="auth-name">Nimi</label><input id="auth-name" name="name" required placeholder="Ees- ja perekonnanimi" /></div>`
                 : ""
             }
             <div class="field"><label for="auth-email">E-post</label><input id="auth-email" name="email" type="email" required placeholder="nimi@e-post.ee" /></div>
             <div class="field"><label for="auth-password">Parool</label><input id="auth-password" name="password" type="password" minlength="10" required placeholder="Vähemalt 10 märki" /></div>
             ${
-              state.authMode === "register"
+              state.authMode === "register" && !adminPortal
                 ? `<div class="field"><label for="auth-club">Klubi kutsekood</label><input id="auth-club" name="clubCode" required placeholder="Sisesta administraatorilt saadud kood" /><small>Kutsekoode jagab sinu klubi administraator.</small></div>`
                 : ""
             }
-            <button class="button" type="submit">${state.authMode === "login" ? "Logi sisse" : "Loo konto ja jätka"} ${icon("arrow")}</button>
+            <button class="button" type="submit">${adminPortal ? "Ava administraatori vaade" : state.authMode === "login" ? "Logi sisse" : "Loo konto ja jätka"} ${icon("arrow")}</button>
           </form>
-          <div class="auth-security"><span>${icon("check")}</span><p>Turvaline seanss · sinu tulemusi näed ainult sina ja sinu klubi administraator.</p></div>
-          <p class="auth-note">Klubiga liitumiseks vajad administraatorilt saadud kutsekoodi.</p>
+          <div class="auth-security"><span>${icon("check")}</span><p>${adminPortal ? "Turvaline seanss · admin näeb ainult enda klubi andmeid." : "Turvaline seanss · sinu tulemusi näed ainult sina ja sinu klubi administraator."}</p></div>
+          <p class="auth-note">${adminPortal ? "Liikmete vaade on administraatori rolliga kontodele." : "Klubiga liitumiseks vajad administraatorilt saadud kutsekoodi."}</p>
         </div>
       </section>
       <footer class="auth-footer-bar"><span>Karli test · väitlusoskuste areng</span><span>Selge tagasiside. Järgmine samm. Parem väitlus.</span></footer>
@@ -820,6 +831,11 @@ async function handleAuthSubmit(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
   const isRegister = state.authMode === "register";
+  if (isAdminPortal() && isRegister) {
+    state.authMode = "login";
+    render();
+    return;
+  }
   try {
     await apiRequest(isRegister ? "/auth/register" : "/auth/login", {
       method: "POST",
@@ -831,7 +847,17 @@ async function handleAuthSubmit(event) {
       }),
     });
     await syncRemoteState();
-    state.view = "dashboard";
+    if (isAdminPortal() && state.user.role !== "admin") {
+      await apiRequest("/auth/logout", { method: "POST", body: JSON.stringify({}) }).catch(() => {});
+      state.user = null;
+      state.backendConnected = false;
+      state.remoteAssessmentId = null;
+      saveState();
+      render();
+      window.alert("See sisenemine on ainult administraatoritele.");
+      return;
+    }
+    state.view = isAdminPortal() ? "admin" : "dashboard";
     state.questionIndex = 0;
     saveState();
     render();
@@ -1111,6 +1137,13 @@ async function boot() {
   if (state.user && state.backendConnected) {
     try {
       await syncRemoteState();
+      if (isAdminPortal() && state.user.role !== "admin") {
+        state.user = null;
+        state.backendConnected = false;
+        state.remoteAssessmentId = null;
+      } else if (isAdminPortal()) {
+        state.view = "admin";
+      }
     } catch {
       state.user = null;
       state.backendConnected = false;
@@ -1118,6 +1151,7 @@ async function boot() {
       saveState();
     }
   }
+  if (isAdminPortal() && state.user?.role === "admin") state.view = "admin";
   render();
 }
 
